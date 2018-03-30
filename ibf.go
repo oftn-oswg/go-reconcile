@@ -1,6 +1,8 @@
-package differencer
+package reconcile
 
 import (
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -8,11 +10,12 @@ import (
 )
 
 type IBF struct {
-	size    int
-	keysize int
-	counts  []int
-	keyset  []byte
-	hashset []uint32
+	Size         int      `json:"size"`
+	Keysize      int      `json:"keysize"`
+	Hashset      []uint32 `json:"hashes"`
+	Countset     []int    `json:"counts"`
+	Bitset       []byte   `json:"-"`
+	BitsetString string   `json:"data"`
 }
 
 func max(x, y int) int {
@@ -25,10 +28,29 @@ func max(x, y int) int {
 func New(size, keysize int) *IBF {
 	size = max(1, size)
 	keysize = max(1, keysize)
+	hashes := make([]uint32, size)
 	counts := make([]int, size)
 	keyset := make([]byte, keysize*size)
-	hashset := make([]uint32, size)
-	return &IBF{size, keysize, counts, keyset, hashset}
+	return &IBF{size, keysize, hashes, counts, keyset, ""}
+}
+
+func (f *IBF) MarshalJSON() ([]byte, error) {
+	f.BitsetString = base64.StdEncoding.EncodeToString(f.Bitset)
+	return json.Marshal(f)
+}
+
+func (f *IBF) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, f); err != nil {
+		return err
+	}
+
+	bitset, err := base64.StdEncoding.DecodeString(f.BitsetString)
+	if err != nil {
+		return err
+	}
+	f.Bitset = bitset
+
+	return nil
 }
 
 func (f *IBF) Hashes(key []byte) []uint32 {
@@ -46,25 +68,25 @@ func (f *IBF) Hashes(key []byte) []uint32 {
 func (f *IBF) Indices(hashes []uint32) []int {
 	indices := make([]int, len(hashes))
 	for index, hash := range hashes {
-		indices[index] = int(uint(hash) % uint(f.size))
+		indices[index] = int(uint(hash) % uint(f.Size))
 	}
 	return indices
 }
 
 func (f *IBF) Update(key []byte, hash uint32, indices []int, incCount int) error {
 	keysize := len(key)
-	if keysize != f.keysize {
+	if keysize != f.Keysize {
 		return fmt.Errorf("Update key '%s' of size %d to filter with key size of %d",
-			key, keysize, f.keysize)
+			key, keysize, f.Keysize)
 	}
 
 	for _, index := range indices {
-		keysetstart := index + f.keysize - keysize
+		keysetstart := index + f.Keysize - keysize
 		for i := 0; i < keysize; i++ {
-			f.keyset[keysetstart+i] ^= key[i]
+			f.Bitset[keysetstart+i] ^= key[i]
 		}
-		f.hashset[index] ^= hash
-		f.counts[index] += incCount
+		f.Hashset[index] ^= hash
+		f.Countset[index] += incCount
 	}
 
 	return nil
@@ -83,39 +105,39 @@ func (f *IBF) Remove(key []byte) error {
 }
 
 func (f *IBF) Subtract(subtrahend *IBF) error {
-	if f.size != subtrahend.size {
+	if f.Size != subtrahend.Size {
 		return errors.New("Subtracting two filters of differing size")
 	}
-	if f.keysize != subtrahend.keysize {
+	if f.Keysize != subtrahend.Keysize {
 		return errors.New("Subtracting two filters with differing max key size")
 	}
 
 	// Subtract keyset
-	keysetsize := len(f.keyset)
+	keysetsize := len(f.Bitset)
 	for i := 0; i < keysetsize; i++ {
-		f.keyset[i] ^= subtrahend.keyset[i]
+		f.Bitset[i] ^= subtrahend.Bitset[i]
 	}
 
-	for i := 0; i < f.size; i++ {
+	for i := 0; i < f.Size; i++ {
 		// Subtract hashset
-		f.hashset[i] ^= subtrahend.hashset[i]
-		f.counts[i] -= subtrahend.counts[i]
+		f.Hashset[i] ^= subtrahend.Hashset[i]
+		f.Countset[i] -= subtrahend.Countset[i]
 	}
 
 	return nil
 }
 
 func (f *IBF) Count(index int) int {
-	return f.counts[index]
+	return f.Countset[index]
 }
 
 func (f *IBF) KeySum(index int) []byte {
-	keyindex := index * f.keysize
-	return f.keyset[keyindex : keyindex+f.keysize]
+	keyindex := index * f.Keysize
+	return f.Bitset[keyindex : keyindex+f.Keysize]
 }
 
 func (f *IBF) HashSum(index int) uint32 {
-	return f.hashset[index]
+	return f.Hashset[index]
 }
 
 func (f *IBF) IsPure(index int) bool {
@@ -134,7 +156,7 @@ func (f *IBF) Decode() ([][]byte, [][]byte, error) {
 	pureIndices := []int{}
 
 	// Get the initial list of pure cells
-	for i := 0; i < f.size; i++ {
+	for i := 0; i < f.Size; i++ {
 		if f.IsPure(i) {
 			pureIndices = append(pureIndices, i)
 		}
@@ -175,7 +197,7 @@ func (f *IBF) Decode() ([][]byte, [][]byte, error) {
 	}
 
 	// Check for failure; we need an empty filter after decoding
-	for i := 0; i < f.size; i++ {
+	for i := 0; i < f.Size; i++ {
 		if f.HashSum(i) != 0 || f.Count(i) != 0 {
 			return diffA, diffB, errors.New("Could not decode all elements")
 		}
