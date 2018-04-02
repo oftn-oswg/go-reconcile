@@ -230,6 +230,10 @@ func (f *IBF) IsPure(index int) bool {
 // - Some subset of A ∖ B,
 // - Some subset of B ∖ A,
 // - An indication of whether all the elements have been properly decoded.
+//
+// The process of decoding changes the filter. The filter removes all keys that
+// have been successfully decoded. So it will be empty if all elements were
+// decoded.
 func (f *IBF) Decode() (a [][]byte, b [][]byte, ok bool) {
 	pureIndices := []int{}
 
