@@ -1,21 +1,29 @@
 package reconcile
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/spaolacci/murmur3"
 )
 
 type IBF struct {
-	Size         int      `json:"size"`
-	Keysize      int      `json:"keysize"`
-	Hashset      []uint32 `json:"hashes"`
-	Countset     []int    `json:"counts"`
-	Bitset       []byte   `json:"-"`
-	BitsetString string   `json:"data"`
+	Size     int
+	Keysize  int
+	Hashset  []uint32
+	Countset []int
+	Bitset   []byte
+}
+
+type IBFSerialization struct {
+	Size     int      `json:"size"`
+	Keysize  int      `json:"keysize"`
+	Hashset  []uint32 `json:"hashes"`
+	Countset []int    `json:"counts"`
+	Data     string   `json:"data"`
 }
 
 func max(x, y int) int {
@@ -28,26 +36,37 @@ func max(x, y int) int {
 func New(size, keysize int) *IBF {
 	size = max(1, size)
 	keysize = max(1, keysize)
-	hashes := make([]uint32, size)
-	counts := make([]int, size)
-	keyset := make([]byte, keysize*size)
-	return &IBF{size, keysize, hashes, counts, keyset, ""}
+	hashset := make([]uint32, size)
+	countset := make([]int, size)
+	bitset := make([]byte, keysize*size)
+	return &IBF{size, keysize, hashset, countset, bitset}
 }
 
 func (f *IBF) MarshalJSON() ([]byte, error) {
-	f.BitsetString = base64.StdEncoding.EncodeToString(f.Bitset)
-	return json.Marshal(f)
+	return json.Marshal(&IBFSerialization{
+		f.Size,
+		f.Keysize,
+		f.Hashset,
+		f.Countset,
+		hex.EncodeToString(f.Bitset),
+	})
 }
 
 func (f *IBF) UnmarshalJSON(data []byte) error {
-	if err := json.Unmarshal(data, f); err != nil {
+	serialization := &IBFSerialization{}
+	if err := json.Unmarshal(data, serialization); err != nil {
 		return err
 	}
 
-	bitset, err := base64.StdEncoding.DecodeString(f.BitsetString)
+	bitset, err := hex.DecodeString(serialization.Data)
 	if err != nil {
 		return err
 	}
+
+	f.Size = serialization.Size
+	f.Keysize = serialization.Keysize
+	f.Hashset = serialization.Hashset
+	f.Countset = serialization.Countset
 	f.Bitset = bitset
 
 	return nil
@@ -62,7 +81,9 @@ func (f *IBF) Hashes(key []byte) []uint32 {
 	c := uint32(h2)       // low 32 bits of h2
 	d := uint32(h2 >> 32) // high 32 bits of h2
 
-	return []uint32{a, b, c, d}
+	hashes := []uint32{a, b, c, d}
+
+	return hashes
 }
 
 func (f *IBF) Indices(hashes []uint32) []int {
@@ -70,6 +91,10 @@ func (f *IBF) Indices(hashes []uint32) []int {
 	for index, hash := range hashes {
 		indices[index] = int(uint(hash) % uint(f.Size))
 	}
+
+	// Now, assure that all indices are distinct
+
+	log.Printf("%#v => %#v", hashes, indices)
 	return indices
 }
 
@@ -81,9 +106,9 @@ func (f *IBF) Update(key []byte, hash uint32, indices []int, incCount int) error
 	}
 
 	for _, index := range indices {
-		keysetstart := index + f.Keysize - keysize
+		bitsetStart := index * f.Keysize
 		for i := 0; i < keysize; i++ {
-			f.Bitset[keysetstart+i] ^= key[i]
+			f.Bitset[bitsetStart+i] ^= key[i]
 		}
 		f.Hashset[index] ^= hash
 		f.Countset[index] += incCount
@@ -188,7 +213,7 @@ func (f *IBF) Decode() ([][]byte, [][]byte, error) {
 
 		// Remove this cell to uncover new pure cells
 		f.Update(key, hashes[0], indices, -count)
-		for i := range indices {
+		for _, i := range indices {
 			if f.IsPure(i) {
 				pureIndices = append(pureIndices, i)
 			}
