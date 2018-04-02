@@ -9,6 +9,7 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
+// IBF is the stucture for the invertible bloom filter.
 type IBF struct {
 	Size     int
 	Keysize  int
@@ -17,6 +18,8 @@ type IBF struct {
 	Bitset   []byte
 }
 
+// IBFSerialization is used to transfer the IBF along the wire suitable for use
+// in a JavaScript implementation.
 type IBFSerialization struct {
 	Size     int      `json:"size"`
 	Keysize  int      `json:"keysize"`
@@ -25,22 +28,33 @@ type IBFSerialization struct {
 	Data     string   `json:"data"`
 }
 
-func max(x, y int) int {
-	if x > y {
-		return x
+// NewIBF creates a new invertible bloom filter of the specified `size`, or the
+// number of cells to create, and `keysize`, or the number of bytes used to
+// store a key.
+//
+// For example, if you are using a cryptographic hash function like SHA256 to
+// represent your keys, you will want to set `keysize` to 32 in order to store
+// 256 bits.
+//
+// You might not want to call this function directly, as the best value of the
+// `size` argument is roughly determined by the size of the set difference. This
+// can be ascertained approximately with the stata estimator algorithm.
+func NewIBF(size, keysize int) *IBF {
+	if size < 1 {
+		size = 1
 	}
-	return y
-}
+	if keysize < 1 {
+		keysize = 1
+	}
 
-func New(size, keysize int) *IBF {
-	size = max(1, size)
-	keysize = max(1, keysize)
 	hashset := make([]uint32, size)
 	countset := make([]int, size)
 	bitset := make([]byte, keysize*size)
 	return &IBF{size, keysize, hashset, countset, bitset}
 }
 
+// MarshalJSON encodes the invertible bloom filter in a JSON byte format as
+// documented by the IBFSerialization type.
 func (f *IBF) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&IBFSerialization{
 		f.Size,
@@ -51,6 +65,8 @@ func (f *IBF) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON decodes the invertible bloom filter from a JSON byte format as
+// documented by the IBFSerialization type.
 func (f *IBF) UnmarshalJSON(data []byte) error {
 	serialization := &IBFSerialization{}
 	if err := json.Unmarshal(data, serialization); err != nil {
@@ -71,6 +87,17 @@ func (f *IBF) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// Hashes returns an array of hash values resulting from the specified `key`.
+// This implementation uses the 128-bit murmur3 hash and returns the following,
+// in order:
+//
+// - the low 32 bits of the first part of the result
+// - the high 32 bits of the first part of the result
+// - the low 32 bits of the second part of the result
+// - the high 32 bits of the second part of the result
+//
+// The first value is used only for the hash sum, while the following three
+// values are used for indices.
 func (f *IBF) Hashes(key []byte) []uint32 {
 	// Hash the key to get array indices
 	h1, h2 := murmur3.Sum128(key)
@@ -85,6 +112,9 @@ func (f *IBF) Hashes(key []byte) []uint32 {
 	return hashes
 }
 
+// Indices converts an array of hash values into indices suitable for use in the
+// filter. This implementation returns a new array where the elements are taken
+// from the elements of the hash value array `mod` the size of the filter.
 func (f *IBF) Indices(hashes []uint32) []int {
 	indices := make([]int, len(hashes))
 	for index, hash := range hashes {
@@ -93,6 +123,12 @@ func (f *IBF) Indices(hashes []uint32) []int {
 	return indices
 }
 
+// Update changes the value of the filter at the indices specified from the
+// `indices` argument. Each value at those indices hash its bitset XORed with
+// the `key` argument, the count value is increased by `incCount`, and the
+// hashset is XORed with the value of the `hash` argument.
+//
+// If the key is not of the proper length, this function returns an error.
 func (f *IBF) Update(key []byte, hash uint32, indices []int, incCount int) error {
 	keysize := len(key)
 	if keysize != f.Keysize {
@@ -112,18 +148,25 @@ func (f *IBF) Update(key []byte, hash uint32, indices []int, incCount int) error
 	return nil
 }
 
+// Add inserts the key into the filter. If the key is not of the proper length,
+// this function returns an error.
 func (f *IBF) Add(key []byte) error {
 	hashes := f.Hashes(key)
 	indices := f.Indices(hashes[1:])
 	return f.Update(key, hashes[0], indices, 1)
 }
 
+// Remove removes the key from the filter. If the key is not of the proper
+// length, this function returns an error.
 func (f *IBF) Remove(key []byte) error {
 	hashes := f.Hashes(key)
 	indices := f.Indices(hashes[1:])
 	return f.Update(key, hashes[0], indices, -1)
 }
 
+// Subtract performs the invertible bloom filter subtraction algorithm and
+// stores the result into this filter. This function returns an error if the
+// filters were initialized with a different size or keysize.
 func (f *IBF) Subtract(subtrahend *IBF) error {
 	if f.Size != subtrahend.Size {
 		return errors.New("Subtracting two filters of differing size")
@@ -147,32 +190,47 @@ func (f *IBF) Subtract(subtrahend *IBF) error {
 	return nil
 }
 
+// Count returns the value of the count cell at the specified `index`.
 func (f *IBF) Count(index int) int {
 	return f.Countset[index]
 }
 
+// KeySum returns the value of the key sum cell at the specified `index`.
 func (f *IBF) KeySum(index int) []byte {
 	keyindex := index * f.Keysize
-	return f.Bitset[keyindex : keyindex+f.Keysize]
+	keysum := make([]byte, f.Keysize)
+	copy(keysum, f.Bitset[keyindex:])
+	return keysum
 }
 
+// HashSum returns the value of the hash sum cell at the specified `index`.
 func (f *IBF) HashSum(index int) uint32 {
 	return f.Hashset[index]
 }
 
+// IsPure returns true if the cell has a count of 1 or -1, and that the hash sum
+// value matches the hash of the cell's key sum.
+//
+// This indicates a good chance that only one element has been stored at the
+// cell with this index, and that it may be uncovered.
 func (f *IBF) IsPure(index int) bool {
 	count := f.Count(index)
 	if count != 1 && count != -1 {
 		return false
 	}
 
-	hashes := f.Hashes(f.KeySum(index))
+	keyindex := index * f.Keysize
+	hashes := f.Hashes(f.Bitset[keyindex : keyindex+f.Keysize])
 	return hashes[0] == f.HashSum(index)
 }
 
-func (f *IBF) Decode() ([][]byte, [][]byte, error) {
-	diffA := [][]byte{}
-	diffB := [][]byte{}
+// Decode performs the decoding operation for this invertible bloom filter.
+// Suppose this filter is called `A`, and that we have called `A.Subtract(B)`.
+// This function returns three values in order, where "∖" is the set difference:
+// - Some subset of A ∖ B,
+// - Some subset of B ∖ A,
+// - An indication of whether all the elements have been properly decoded.
+func (f *IBF) Decode() (a [][]byte, b [][]byte, ok bool) {
 	pureIndices := []int{}
 
 	// Get the initial list of pure cells
@@ -193,18 +251,16 @@ func (f *IBF) Decode() ([][]byte, [][]byte, error) {
 			continue
 		}
 
-		key := make([]byte, f.Keysize)
-		copy(key, f.KeySum(index))
-
+		key := f.KeySum(index)
 		count := f.Count(index)
 		hashes := f.Hashes(key)
 		indices := f.Indices(hashes[1:])
 
 		// Use the value of count to determine which difference we are part of
 		if count > 0 {
-			diffA = append(diffA, key)
+			a = append(a, key)
 		} else {
-			diffB = append(diffB, key)
+			b = append(b, key)
 		}
 
 		// Remove this cell to uncover new pure cells
@@ -220,14 +276,15 @@ func (f *IBF) Decode() ([][]byte, [][]byte, error) {
 	// Check for failure; we need an empty filter after decoding
 	for i := 0; i < f.Size; i++ {
 		if f.HashSum(i) != 0 || f.Count(i) != 0 {
-			return diffA, diffB, errors.New("Could not decode all elements")
+			return
 		}
-		for _, v := range f.KeySum(i) {
-			if v != 0 {
-				return diffA, diffB, errors.New("Coult not decode all elements")
-			}
+	}
+	for _, v := range f.Bitset {
+		if v != 0 {
+			return
 		}
 	}
 
-	return diffA, diffB, nil
+	ok = true
+	return
 }

@@ -48,8 +48,8 @@ func TestReconcile(t *testing.T) {
 		}
 
 		cells := 2 + numDifferences*4
-		filterA := New(cells, keysize)
-		filterB := New(cells, keysize)
+		filterA := NewIBF(cells, keysize)
+		filterB := NewIBF(cells, keysize)
 
 		for _, element := range baseSet {
 			// Add to both sets
@@ -89,9 +89,9 @@ func TestReconcile(t *testing.T) {
 		// Our sets are created.
 		// TODO: Serialize first
 		filterA.Subtract(filterB)
-		AdiffB, BdiffA, err := filterA.Decode()
+		AdiffB, BdiffA, ok := filterA.Decode()
 
-		if err != nil {
+		if !ok {
 			t.Errorf("Could not decode all differences")
 		}
 
