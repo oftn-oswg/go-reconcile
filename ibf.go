@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/spaolacci/murmur3"
 )
@@ -91,10 +90,6 @@ func (f *IBF) Indices(hashes []uint32) []int {
 	for index, hash := range hashes {
 		indices[index] = int(uint(hash) % uint(f.Size))
 	}
-
-	// Now, assure that all indices are distinct
-
-	log.Printf("%#v => %#v", hashes, indices)
 	return indices
 }
 
@@ -198,8 +193,12 @@ func (f *IBF) Decode() ([][]byte, [][]byte, error) {
 			continue
 		}
 
-		key := f.KeySum(index)
+		key := make([]byte, f.Keysize)
+		copy(key, f.KeySum(index))
+
 		count := f.Count(index)
+		hashes := f.Hashes(key)
+		indices := f.Indices(hashes[1:])
 
 		// Use the value of count to determine which difference we are part of
 		if count > 0 {
@@ -207,9 +206,6 @@ func (f *IBF) Decode() ([][]byte, [][]byte, error) {
 		} else {
 			diffB = append(diffB, key)
 		}
-
-		hashes := f.Hashes(key)
-		indices := f.Indices(hashes[1:])
 
 		// Remove this cell to uncover new pure cells
 		f.Update(key, hashes[0], indices, -count)

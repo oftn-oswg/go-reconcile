@@ -3,16 +3,17 @@ package reconcile
 import (
 	"bytes"
 	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"log"
 	"math/rand"
 	"testing"
 )
 
+func elementName(key []byte) string {
+	return "'" + hex.EncodeToString(key) + "'"
+}
+
 func TestReconcile(t *testing.T) {
 	numDifferences := 1
-	numBaseElements := 0
+	numBaseElements := 8
 	keysize := 32
 
 	baseSet := [][]byte{}
@@ -26,7 +27,9 @@ func TestReconcile(t *testing.T) {
 		baseSet = append(baseSet, element)
 	}
 
-	for numDifferences < 3 {
+	for numDifferences < 8 {
+		t.Logf("Testing sets with %d differences and %d similarities", numDifferences, numBaseElements)
+
 		diffSetA := [][]byte{}
 		diffSetB := [][]byte{}
 		for i := 0; i < numDifferences; i++ {
@@ -44,7 +47,7 @@ func TestReconcile(t *testing.T) {
 			*diffSet = append(*diffSet, element)
 		}
 
-		cells := numDifferences * 4
+		cells := 2 + numDifferences*4
 		filterA := New(cells, keysize)
 		filterB := New(cells, keysize)
 
@@ -62,7 +65,7 @@ func TestReconcile(t *testing.T) {
 				return
 			}
 
-			log.Printf("Adding %s to sets A and B", hex.EncodeToString(element))
+			t.Logf("Letting %s ∈ A ∩ B", elementName(element))
 		}
 
 		for _, element := range diffSetA {
@@ -71,7 +74,7 @@ func TestReconcile(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			log.Printf("Adding %s to set A", hex.EncodeToString(element))
+			t.Logf("Letting %s ∈ A", elementName(element))
 		}
 
 		for _, element := range diffSetB {
@@ -80,18 +83,24 @@ func TestReconcile(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			log.Printf("Adding %s to set B", hex.EncodeToString(element))
+			t.Logf("Letting %s ∈ B", elementName(element))
 		}
 
 		// Our sets are created.
 		// TODO: Serialize first
 		filterA.Subtract(filterB)
-		jsonA, _ := json.Marshal(filterA)
-		fmt.Printf("%s\n\n", string(jsonA))
-
 		AdiffB, BdiffA, err := filterA.Decode()
+
 		if err != nil {
-			t.Errorf("For %d differences, could not decode", numDifferences)
+			t.Errorf("Could not decode all differences")
+		}
+
+		for _, element := range AdiffB {
+			t.Logf("Found %s ∈ A − B\n", elementName(element))
+		}
+
+		for _, element := range BdiffA {
+			t.Logf("Found %s ∈ B − A\n", elementName(element))
 		}
 
 		for _, AdiffBelement := range AdiffB {
@@ -115,7 +124,7 @@ func TestReconcile(t *testing.T) {
 			}
 
 			if !inA || inB {
-				t.Errorf("Element %s is not in set A, or is in B", hex.EncodeToString(AdiffBelement))
+				t.Errorf("%s ∉ A − B", elementName(AdiffBelement))
 			}
 		}
 
@@ -140,7 +149,7 @@ func TestReconcile(t *testing.T) {
 			}
 
 			if inA || !inB {
-				t.Errorf("Element %s is not in set B, or is in A", hex.EncodeToString(BdiffAelement))
+				t.Errorf("%s ∉ B − A", elementName(BdiffAelement))
 			}
 		}
 
