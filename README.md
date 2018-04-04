@@ -1,21 +1,8 @@
-Set reconcilation functions
+# go-reconcile
 
-Required operation:
-Both parties generate a Filter
-Both parties exchange filters
-(A) Local party
-(B) Remote party
-Subtract A-B for what's missing from B
-Subtract B-A for what's mising from A
-Look for pure cells check Hash(idSum) == hashSum -> purelist index
-for each in purelist find id
-&	add id to difflist
-	rehash id to find all other ibf cells containing it
-	remove id from all those cells; xor id, xor hash, decrement count
-look for pure cells goto & until all cells zero
-if no pure cells remainig and not zero then failed
-if failed goto fallback Method
+A set reconciliation library for data synchronization and de-duplication. This library is written to interface with
+[oftn-oswg/ts-reconcile](https://github.com/oftn-oswg/ts-reconcile), the TypeScript/JavaScript implementation.
 
-Input:
-- array of file contents hashes from local database
-- IBF from remote
+The algorithms implemented here are based on:
+
+**David Eppstein**, **Michael T. Goodrich**, **Frank Uyeda**, and **George Varghese**. 2011. _What's the difference?: efficient set reconciliation without prior context._ In Proceedings of the ACM SIGCOMM 2011 conference (SIGCOMM '11). ACM, New York, NY, USA, 218-229. DOI: https://doi.org/10.1145/2018436.2018462
