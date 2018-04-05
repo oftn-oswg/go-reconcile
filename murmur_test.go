@@ -28,7 +28,7 @@ func TestSum128x32(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		actual := Sum128x32(test.data)
+		actual := Sum128x32(test.data, 0)
 		if actual != test.out {
 			t.Error(
 				"For", test.title, "test",

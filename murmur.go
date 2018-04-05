@@ -15,13 +15,13 @@ func fmix32(h uint32) uint32 {
 
 // Sum128x32 computes the Murmur32 128-bit hash for the 32-bit platform.
 // It assumes a little-endian architecture.
-func Sum128x32(key []byte) [4]uint32 {
+func Sum128x32(key []byte, seed uint32) [4]uint32 {
 	const c1 = 0x239b961b
 	const c2 = 0xab0e9789
 	const c3 = 0x38b34ae5
 	const c4 = 0xa1e38b93
 
-	var h1, h2, h3, h4 uint32
+	h1, h2, h3, h4 := seed, seed, seed, seed
 
 	size := len(key)
 	blocks := size / 16

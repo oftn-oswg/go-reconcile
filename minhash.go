@@ -3,8 +3,6 @@ package reconcile
 import (
 	"fmt"
 	"math"
-
-	"github.com/spaolacci/murmur3"
 )
 
 //Using Min Hash
@@ -68,7 +66,8 @@ func GetMinHashSignature(keys [][]byte, hashcount uint32) [][]uint64 {
 
 	for _, key := range keys {
 		for hashseed = 0; hashseed < hashcount; hashseed++ { //0 to hashcount
-			hash := murmur3.Sum64WithSeed(key, hashseed) % uint64(len(keys))
+			sum := Sum128x32(key, hashseed)
+			hash := uint64(sum[0]) % uint64(len(keys))
 			for byteindex, keybyte := range key { //for each byte of key
 				var pattern uint8 = 1
 				for bitindex := 0; bitindex < 8; bitindex++ { //for each bit in key

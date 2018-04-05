@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/spaolacci/murmur3"
 )
 
 // IBF is the stucture for the invertible bloom filter.
@@ -88,8 +86,8 @@ func (f *IBF) UnmarshalJSON(data []byte) error {
 }
 
 // Hashes returns an array of hash values resulting from the specified `key`.
-// This implementation uses the 128-bit murmur3 hash and returns the following,
-// in order:
+// This implementation uses the 128-bit x86 murmur3 hash and returns the
+// following, in order:
 //
 // - the low 32 bits of the first part of the result
 // - the high 32 bits of the first part of the result
@@ -100,16 +98,8 @@ func (f *IBF) UnmarshalJSON(data []byte) error {
 // values are used for indices.
 func (f *IBF) Hashes(key []byte) []uint32 {
 	// Hash the key to get array indices
-	h1, h2 := murmur3.Sum128(key)
-
-	a := uint32(h1)       // low 32 bits of h1
-	b := uint32(h1 >> 32) // high 32 bits of h1
-	c := uint32(h2)       // low 32 bits of h2
-	d := uint32(h2 >> 32) // high 32 bits of h2
-
-	hashes := []uint32{a, b, c, d}
-
-	return hashes
+	values := Sum128x32(key, 0)
+	return values[:]
 }
 
 // Indices converts an array of hash values into indices suitable for use in the
