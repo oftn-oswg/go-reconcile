@@ -3,6 +3,7 @@ package reconcile
 import (
 	"bytes"
 	"encoding/hex"
+	"log"
 	"math/rand"
 	"testing"
 )
@@ -11,148 +12,112 @@ func elementName(key []byte) string {
 	return "'" + hex.EncodeToString(key) + "'"
 }
 
-func TestReconcile(t *testing.T) {
-	numDifferences := 1
-	numBaseElements := 8
-	keysize := 32
-
-	baseSet := [][]byte{}
-	for i := 0; i < numBaseElements; i++ {
+func makeRandomElements(count, keysize int) [][]byte {
+	elements := make([][]byte, count)
+	for i := 0; i < count; i++ {
 		element := make([]byte, keysize)
 		_, err := rand.Read(element)
 		if err != nil {
-			t.Error("Could not get random bytes for set element")
-			return
+			log.Panicln("Could not get random bytes for set element")
 		}
-		baseSet = append(baseSet, element)
+		elements[i] = element
 	}
+	return elements
+}
 
-	for numDifferences < 8 {
-		t.Logf("Testing sets with %d differences and %d similarities", numDifferences, numBaseElements)
+func containsElement(list [][]byte, element []byte) bool {
+	for _, listElement := range list {
+		if bytes.Equal(listElement, element) {
+			return true
+		}
+	}
+	return false
+}
 
-		diffSetA := [][]byte{}
-		diffSetB := [][]byte{}
-		for i := 0; i < numDifferences; i++ {
-			element := make([]byte, keysize)
-			_, err := rand.Read(element)
-			if err != nil {
-				t.Error("Could not get random bytes for set element")
-				return
+func TestReconcile(t *testing.T) {
+	keysize := 32
+
+	for base := 1; base <= 9; base += 4 {
+		for diffs := 1; diffs <= 8; diffs++ {
+			cells := 2 + diffs*4
+			t.Logf("Testing with %d common and %d different elements in %d cells", base, diffs, cells)
+
+			// Prepare elements
+			common := makeRandomElements(base, keysize)
+			partition := rand.Intn(diffs + 1)
+			elementsAunique := makeRandomElements(partition, keysize)
+			elementsBunique := makeRandomElements(diffs-partition, keysize)
+			elementsA := append(append(make([][]byte, 0, base+len(elementsAunique)), common...), elementsAunique...)
+			elementsB := append(append(make([][]byte, 0, base+len(elementsBunique)), common...), elementsBunique...)
+
+			for _, element := range common {
+				t.Logf("Letting %s ∈ A ∩ B", elementName(element))
 			}
-			// Add to a set at random
-			diffSet := &diffSetA
-			if rand.Intn(2) == 0 {
-				diffSet = &diffSetB
+			for _, element := range elementsAunique {
+				t.Logf("Letting %s ∈ A", elementName(element))
 			}
-			*diffSet = append(*diffSet, element)
-		}
-
-		cells := 2 + numDifferences*4
-		filterA := NewIBF(cells, keysize)
-		filterB := NewIBF(cells, keysize)
-
-		for _, element := range baseSet {
-			// Add to both sets
-			err := filterA.Add(element)
-			if err != nil {
-				t.Error(err)
-				return
+			for _, element := range elementsBunique {
+				t.Logf("Letting %s ∈ B", elementName(element))
 			}
 
-			err = filterB.Add(element)
-			if err != nil {
-				t.Error(err)
-				return
+			// Construct filters
+			filterA := NewIBF(cells, keysize)
+			filterB := NewIBF(cells, keysize)
+			for _, element := range elementsA {
+				if err := filterA.Add(element); err != nil {
+					t.Error(err)
+				}
 			}
-
-			t.Logf("Letting %s ∈ A ∩ B", elementName(element))
-		}
-
-		for _, element := range diffSetA {
-			err := filterA.Add(element)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			t.Logf("Letting %s ∈ A", elementName(element))
-		}
-
-		for _, element := range diffSetB {
-			err := filterB.Add(element)
-			if err != nil {
-				t.Error(err)
-				return
-			}
-			t.Logf("Letting %s ∈ B", elementName(element))
-		}
-
-		// Our sets are created.
-		// TODO: Serialize first
-		filterA.Subtract(filterB)
-		AdiffB, BdiffA, ok := filterA.Decode()
-
-		if !ok {
-			t.Errorf("Could not decode all differences")
-		}
-
-		for _, element := range AdiffB {
-			t.Logf("Found %s ∈ A − B\n", elementName(element))
-		}
-
-		for _, element := range BdiffA {
-			t.Logf("Found %s ∈ B − A\n", elementName(element))
-		}
-
-		for _, AdiffBelement := range AdiffB {
-			// Fail if AdiffBelement is not in A or is in B
-			inA := false
-			inB := false
-			for _, element := range diffSetA {
-				// Look in setA
-				if bytes.Equal(AdiffBelement, element) {
-					inA = true
-					break
+			for _, element := range elementsB {
+				if err := filterB.Add(element); err != nil {
+					t.Error(err)
 				}
 			}
 
-			for _, element := range diffSetB {
-				// Look in setA
-				if bytes.Equal(AdiffBelement, element) {
-					inB = true
-					break
+			// Perform decoding
+			filterA.Subtract(filterB)
+			local, remote, complete := filterA.Decode()
+
+			t.Logf("We have %s deduction",
+				(map[bool]string{true: "a complete", false: "an incomplete"})[complete])
+
+			// Expect local ⊆ A − B
+			for _, element := range local {
+				if containsElement(elementsAunique, element) {
+					t.Logf("Local's %s ∈ A − B", elementName(element))
+				} else {
+					t.Errorf("Local's %s ∉ A − B", elementName(element))
 				}
 			}
 
-			if !inA || inB {
-				t.Errorf("%s ∉ A − B", elementName(AdiffBelement))
+			// Expect remote ⊆ B − A
+			for _, element := range remote {
+				if containsElement(elementsBunique, element) {
+					t.Logf("Remote's %s ∈ B − A", elementName(element))
+				} else {
+					t.Errorf("Remote's %s ∉ B − A", elementName(element))
+				}
 			}
+
+			if complete {
+				// Expect A − B ⊆ local
+				for _, element := range elementsAunique {
+					if containsElement(local, element) {
+						t.Logf("A's %s ∈ local", elementName(element))
+					} else {
+						t.Errorf("A's %s ∉ local", elementName(element))
+					}
+				}
+				// Expect B − A ⊆ remote
+				for _, element := range elementsBunique {
+					if containsElement(remote, element) {
+						t.Logf("B's %s ∈ remote", elementName(element))
+					} else {
+						t.Errorf("B's %s ∉ remote", elementName(element))
+					}
+				}
+			}
+
 		}
-
-		for _, BdiffAelement := range BdiffA {
-			// Fail if BdiffAelement is not in B or is in A
-			inA := false
-			inB := false
-			for _, element := range diffSetA {
-				// Look in setA
-				if bytes.Equal(BdiffAelement, element) {
-					inA = true
-					break
-				}
-			}
-
-			for _, element := range diffSetB {
-				// Look in setA
-				if bytes.Equal(BdiffAelement, element) {
-					inB = true
-					break
-				}
-			}
-
-			if inA || !inB {
-				t.Errorf("%s ∉ B − A", elementName(BdiffAelement))
-			}
-		}
-
-		numDifferences++
 	}
 }
