@@ -11,6 +11,11 @@ func TestSum128x32(t *testing.T) {
 		out   [4]uint32
 	}{
 		{
+			"Match empty buffer",
+			[]byte(""),
+			[...]uint32{0, 0, 0, 0},
+		},
+		{
 			"Match one block",
 			[]byte("This is 16 bytes"),
 			[...]uint32{0xd42f6b0a, 0x9a95f367, 0xdcd64279, 0x98f8e6d5},
