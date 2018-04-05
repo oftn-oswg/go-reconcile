@@ -147,24 +147,20 @@ func Sum128x32(key []byte, seed uint32) [4]uint32 {
 	h3 ^= uint32(size)
 	h4 ^= uint32(size)
 
-	h1 = h1 + h2
-	h1 = h1 + h3
-	h1 = h1 + h4
-	h2 = h2 + h1
-	h3 = h3 + h1
-	h4 = h4 + h1
+	h1 = h1 + h2 + h3 + h4
+	h2 += h1
+	h3 += h1
+	h4 += h1
 
 	h1 = fmix32(h1)
 	h2 = fmix32(h2)
 	h3 = fmix32(h3)
 	h4 = fmix32(h4)
 
-	h1 = h1 + h2
-	h1 = h1 + h3
-	h1 = h1 + h4
-	h2 = h2 + h1
-	h3 = h3 + h1
-	h4 = h4 + h1
+	h1 = h1 + h2 + h3 + h4
+	h2 += h1
+	h3 += h1
+	h4 += h1
 
 	return [4]uint32{h1, h2, h3, h4}
 }
