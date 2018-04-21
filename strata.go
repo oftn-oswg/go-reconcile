@@ -1,11 +1,12 @@
 package reconcile
 
 import (
-	"fmt"
+	"encoding/json"
 )
 
 //TODO
 //Error handling
+//More efficient to ignore smallest levels when sets differ in size?
 
 // Strata estimates the difference between two sets
 type Strata struct {
@@ -15,13 +16,17 @@ type Strata struct {
 	IBFset   []*IBF
 }
 
+//This is used for the JSON data transfer of the difference estimators
+//For type Strata
+type DifferenceSerialization []IBFSerialization
+
 func NewStrata(cellsize, keysize, depth int) *Strata {
-	IBFset := make([]*IBF, depth) //!
+	IBFset := make([]*IBF, depth)
 	return &Strata{cellsize, keysize, depth, IBFset}
 }
 
+//Populate an estimator in one
 func (s *Strata) Populate(keys [][]byte) {
-	//Split up the keys into strata
 	//Create strata ibfs
 	for d := 0; d < s.Depth; d++ {
 		s.IBFset[d] = NewIBF(s.Cellsize, s.Keysize)
@@ -29,8 +34,34 @@ func (s *Strata) Populate(keys [][]byte) {
 
 	//assign elements by trailing zeroes
 	for _, key := range keys {
-		s.IBFset[TrailingZeroes(key[:3], s.Depth-1)].Add(key)
+		s.IBFset[TrailingZeroes(key[:3], uint(s.Depth-1))].Add(key)
 	}
+}
+
+//Unmarshal JSON into DifferenceSerialization struct
+func (s *Strata) UnmarshalStrataJSON(data []byte) error {
+	serialization := make([]IBFSerialization, s.Depth)
+	if err := json.Unmarshal(data, &serialization); err != nil {
+		return err
+	}
+
+	//Process all JSON from remote strata estimator
+	for level, _ := range serialization {
+		s.IBFset[level].SetIBF(serialization[level])
+	}
+
+	return nil
+}
+
+func (s *Strata) MarshalStrataJSON() ([]byte, error) {
+	signature := make([]IBFSerialization, s.Depth)
+
+	//Process all JSON from remote strata estimator
+	for level, _ := range signature {
+		signature[level] = s.IBFset[level].GetIBF()
+
+	}
+	return json.Marshal(&signature)
 }
 
 func (s *Strata) Estimate(remote *Strata) int {
@@ -50,26 +81,19 @@ func (s *Strata) Estimate(remote *Strata) int {
 		}
 
 		count += len(b) + len(a)
-		fmt.Printf("Level %v (a,b,ok): (%v, %v, %v)\n", level+1, len(a), len(b), ok)
 	}
 	return 0
 }
 
 //count trailing zeroes per bit up to limit
-func TrailingZeroes(key []byte, limit int) int {
-	var count int = 0
+func TrailingZeroes(key []byte, limit uint) uint {
+	var count uint = 0
 	var pattern uint8 = 1
-	index := 0
-	for index < len(key) {
-		if key[index]&pattern == 0 && count < limit {
+
+	for count < limit {
+		pattern = 1 << (count % 8)
+		if key[count/8]&pattern == 0 {
 			count++
-			//if = 128 then goto next byte
-			if pattern == 128 {
-				pattern = 1
-				index++
-			} else {
-				pattern <<= 1
-			}
 		} else {
 			return count
 		}

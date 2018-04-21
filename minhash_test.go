@@ -7,13 +7,12 @@ import (
 )
 
 func TestMinHash(t *testing.T) {
-	numElements := 1000
-	numDifferences := 1000
+	numElements := 100
+	numDifferences := 80
 	var hashCount uint32 = 100
 	keysize := 32
-
-	localkeys := [][]byte{}
-	remotekeys := [][]byte{}
+	local := NewMinHash(hashCount, keysize)
+	remote := NewMinHash(hashCount, keysize)
 
 	for i := 0; i < numElements; i++ {
 		element := make([]byte, keysize)
@@ -22,8 +21,8 @@ func TestMinHash(t *testing.T) {
 			t.Error("Could not get random bytes for set element")
 			return
 		}
-		localkeys = append(localkeys, element)
-		remotekeys = append(remotekeys, element)
+		local.Add(element)
+		remote.Add(element)
 	}
 
 	for i := 0; i < numDifferences; i++ {
@@ -34,20 +33,16 @@ func TestMinHash(t *testing.T) {
 			return
 		}
 		// Add to a set at random
-		diffSet := &localkeys
+		diffSet := local
 		if rand.Intn(2) == 0 {
-			diffSet = &remotekeys
+			diffSet = remote
 		}
-		*diffSet = append(*diffSet, element)
+		diffSet.Add(element)
 	}
 
-	sigA := GetMinHashSignature(localkeys, hashCount)
-	sigB := GetMinHashSignature(remotekeys, hashCount)
+	diff := local.Difference(remote)
 
-	diff := MinHashDifference(sigA, sigB)
-
-	fmt.Printf("MinHash Diff %v out of %v\n", diff, int(hashCount)*keysize*8)
-	//fmt.Printf("%v%%\n", diff, int(hashCount)*keysize*8)
+	fmt.Printf("MinHash Diff %v vs actual: %v\n", diff, numDifferences)
 
 	fmt.Printf("End MinHash \n")
 }

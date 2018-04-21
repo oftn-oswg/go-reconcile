@@ -85,6 +85,31 @@ func (f *IBF) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+//Takes and sets values in the IBF directly
+func (f *IBF) SetIBF(data IBFSerialization) error {
+	bitset, err := hex.DecodeString(data.Data)
+	if err != nil {
+		return err
+	}
+
+	f.Size = data.Size
+	f.Keysize = data.Keysize
+	f.Hashset = data.Hashset
+	f.Countset = data.Countset
+	f.Bitset = bitset
+
+	return nil
+}
+
+func (f *IBF) GetIBF() IBFSerialization {
+	return IBFSerialization{
+		f.Size,
+		f.Keysize,
+		f.Hashset,
+		f.Countset,
+		hex.EncodeToString(f.Bitset)}
+}
+
 // Hashes returns an array of hash values resulting from the specified `key`.
 // This implementation uses the 128-bit x86 murmur3 hash and returns the
 // following, in order:

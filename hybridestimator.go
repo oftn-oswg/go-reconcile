@@ -46,7 +46,6 @@ func (h *HybridEstimator) BuildSignature(keys [][]byte) {
 }
 
 func (h *HybridEstimator) EstimateSizeDifference(remote *HybridEstimator) int {
-
 	count := 0
 
 	for level := h.Depth - 1; level >= -1; level-- {
@@ -55,9 +54,7 @@ func (h *HybridEstimator) EstimateSizeDifference(remote *HybridEstimator) int {
 		} else if level < 2 { //MinHash
 			mh := h.MinHashset[level]
 			fmt.Println(mh.Difference(remote.MinHashset[level]))
-
 		} else { //IBF Strata
-
 			ibf := h.IBFset[level]
 			remotelevel := remote.IBFset[level]
 			ibf.Subtract(remotelevel)

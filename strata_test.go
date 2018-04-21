@@ -10,7 +10,7 @@ import (
 func TestStrata(t *testing.T) {
 
 	numDifferences := 4
-	numBaseElements := 50000
+	numBaseElements := 500
 	keysize := 32
 	cellSize := 80
 
@@ -43,10 +43,6 @@ func TestStrata(t *testing.T) {
 		*diffSet = append(*diffSet, element)
 	}
 
-	fmt.Printf("Size of local set : %v\n", len(localkeys))
-	fmt.Printf("Size of remote set: %v\n", len(remotekeys))
-	fmt.Printf("Number of difference: %v\n", numDifferences)
-
 	//calculate the depth required to contain all values
 	var count int
 	if len(localkeys) > len(remotekeys) {
@@ -56,7 +52,6 @@ func TestStrata(t *testing.T) {
 	}
 
 	depth := int(math.Ceil(math.Log2(float64(count))))
-	fmt.Printf("Depth: %v\n", depth)
 
 	localstrata := NewStrata(cellSize, keysize, depth)
 	remotestrata := NewStrata(cellSize, keysize, depth)
@@ -66,8 +61,7 @@ func TestStrata(t *testing.T) {
 
 	diffloc := localstrata.Estimate(remotestrata)
 	//diffrem := remotestrata.Estimate(localstrata)
-	fmt.Printf("Real Diff: %v, Estimated: %v \n", numDifferences, diffloc)
-	fmt.Printf("Error: %v%%\n", 100*math.Abs(1.0-float64(diffloc)/float64(numDifferences)))
-	//fmt.Printf("Real Diff: %v, Estimated: %v \n", numDifferences, diffrem)
+	fmt.Printf("Real Diff: %v, Strata Estimated: %v \n", numDifferences, diffloc)
+	//fmt.Printf("Error: %v%%\n", 100*math.Abs(1.0-float64(diffloc)/float64(numDifferences)))
 
 }
