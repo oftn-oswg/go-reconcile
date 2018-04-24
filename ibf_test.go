@@ -34,7 +34,7 @@ func containsElement(list [][]byte, element []byte) bool {
 	return false
 }
 
-func TestReconcile(t *testing.T) {
+func TestIBF(t *testing.T) {
 	keysize := 32
 
 	for base := 1; base <= 9; base += 4 {

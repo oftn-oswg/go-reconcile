@@ -2,17 +2,14 @@ package reconcile
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
-//TODO
-//Error handling
-//More efficient to ignore smallest levels when sets differ in size?
-
-// Strata estimates the difference between two sets
+// Strata estimates the size of the difference between two sets
 type Strata struct {
 	Cellsize int //IBF size for each strata
-	Keysize  int
-	Depth    int
+	Keysize  int //Bytes
+	Depth    int //Number of levels
 	IBFset   []*IBF
 }
 
@@ -44,12 +41,12 @@ func (s *Strata) UnmarshalStrataJSON(data []byte) error {
 	if err := json.Unmarshal(data, &serialization); err != nil {
 		return err
 	}
-
+	fmt.Printf("Levels: %v, %v\n", s.Depth, len(s.IBFset))
 	//Process all JSON from remote strata estimator
 	for level, _ := range serialization {
+		fmt.Println(level) //Debug
 		s.IBFset[level].SetIBF(serialization[level])
 	}
-
 	return nil
 }
 
@@ -59,7 +56,6 @@ func (s *Strata) MarshalStrataJSON() ([]byte, error) {
 	//Process all JSON from remote strata estimator
 	for level, _ := range signature {
 		signature[level] = s.IBFset[level].GetIBF()
-
 	}
 	return json.Marshal(&signature)
 }

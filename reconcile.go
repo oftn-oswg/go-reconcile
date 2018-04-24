@@ -14,12 +14,11 @@ type Reconcile struct {
 	Keyset    [][]byte
 	Estimator *Strata
 	Depth     int
-	DiffSize  int //default 0
 }
 
 //Creates a set reconciler and populates a size estimator with all local keys
 func NewReconcile(keys [][]byte, remotesetsize int) *Reconcile {
-	//Ugly
+	//Get the required depth
 	var depth int
 	if remotesetsize > len(keys) {
 		depth = int(math.Ceil(math.Log2(float64(remotesetsize))))
@@ -27,22 +26,23 @@ func NewReconcile(keys [][]byte, remotesetsize int) *Reconcile {
 		depth = int(math.Ceil(math.Log2(float64(len(keys)))))
 	}
 
+	//Create and populate and return the local IBF
 	estimator := NewStrata(80, len(keys[0]), depth)
 	estimator.Populate(keys)
 
-	return &Reconcile{keys, estimator, depth, 0}
+	return &Reconcile{keys, estimator, depth}
 }
 
 func (r *Reconcile) GetDifferenceSizeEstimator() ([]byte, error) {
-	return r.Estimator.MarshalStrataJSON()
+	json, err := r.Estimator.MarshalStrataJSON()
+	return json, err
 }
 
 //Takes JSON estimator data from remote and estimates size of difference
-func (r *Reconcile) EstimateDifferenceSize(data []byte) error {
+func (r *Reconcile) EstimateDifferenceSize(data []byte) (int, error) {
 	remote := NewStrata(80, len(r.Keyset[0]), r.Depth)
-	remote.UnmarshalStrataJSON(data)
-	r.DiffSize = r.Estimator.Estimate(remote)
-	return nil
+	err := remote.UnmarshalStrataJSON(data)
+	return r.Estimator.Estimate(remote), err
 }
 
 //Generates signature of ibf dataset
@@ -64,5 +64,4 @@ func (r *Reconcile) GetDifference(size int, remotesignature []byte) (a [][]byte,
 	remoteibf.UnmarshalJSON(remotesignature)
 	ibf.Subtract(remoteibf)
 	return ibf.Decode()
-
 }

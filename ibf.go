@@ -91,8 +91,10 @@ func (f *IBF) SetIBF(data IBFSerialization) error {
 	if err != nil {
 		return err
 	}
+	fmt.Println(f.Size)
 
 	f.Size = data.Size
+	fmt.Println("GO2")
 	f.Keysize = data.Keysize
 	f.Hashset = data.Hashset
 	f.Countset = data.Countset
