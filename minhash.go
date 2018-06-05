@@ -1,22 +1,14 @@
 package reconcile
 
-import (
-	"math"
-)
-
-//Using Min Hash
-//Each party generates a signature
-//Exchange and compare locally
-
-//For each key (row)
-//For each hash compute h(row)
-//then
-//For each bit in row
-//If bit==1
-//for each hash function
-//if h(row) < M(i, c)
-//M(i,c) = h(row)
-
+// MinHash is a structure used for a technique to quickly estimate how similar
+// two sets are. The scheme was invented by Andrei Broder in 1997.
+//
+// Each party generates a signature of their set, and since the signature is
+// significantly smaller, it can be exchanged and compared locally.
+//
+// A. Z. Broder, M. Charikar, A. M. Frieze, and M. Mitzenmacher.
+// Min-wise independent permutations.
+// J. Comput. Syst. Sci., 60:630–659, 2000.
 type MinHash struct {
 	keysize   int
 	signature [][]uint64
@@ -24,37 +16,43 @@ type MinHash struct {
 	keycount  int
 }
 
-const signatureInit = math.MaxUint64
-
+// NewMinHash creates a new MinHash structure and initializes the signature
+// required for the specified hashcount and keysize.
 func NewMinHash(hashcount int, keysize int) *MinHash {
 	// Initialise signature
 	signature := make([][]uint64, hashcount)
 	for row := range signature {
 		signature[row] = make([]uint64, keysize*8)
-		for col := range signature[row] {
-			signature[row][col] = signatureInit
-		}
 	}
 
 	return &MinHash{keysize, signature, hashcount, 0}
 }
 
+// Add updates the signature to include the desired key
 func (mh *MinHash) Add(key []byte) {
-	for hashseed := 0; hashseed < mh.hashcount; hashseed++ { //0 to hashcount
+	for hashseed := 0; hashseed < mh.hashcount; hashseed++ {
 		sum := Sum128x32(key, uint32(hashseed))
 		hash := uint64(sum[0]) % uint64(mh.hashcount)
-		for byteindex, keybyte := range key { //for each byte of key
-			var pattern uint8 = 1
-			for bitindex := 0; bitindex < 8; bitindex++ { //for each bit in key
-				if keybyte&pattern != 0 { //do if found bit & not already found
-					if hash < mh.signature[hashseed][(byteindex*8)+bitindex] {
-						mh.signature[hashseed][(byteindex*8)+bitindex] = hash
-					} //if hash is less than then update
-				} //if bit is 1
+
+		// For each byte of the key
+		for byteindex, keybyte := range key {
+			pattern := uint8(1)
+
+			// For each bit in the key
+			for bitindex := 0; bitindex < 8; bitindex++ {
+				if keybyte&pattern != 0 {
+					// If hash is greater than signature, then update
+					index := (byteindex * 8) + bitindex
+					if hash > mh.signature[hashseed][index] {
+						mh.signature[hashseed][index] = hash
+					}
+				}
+
 				pattern <<= 1
-			} //scan through bits
-		} //scan through bytes of key
-	} //for each hash
+			}
+		}
+	}
+
 	mh.keycount++
 }
 
@@ -72,7 +70,7 @@ func (mh *MinHash) Difference(remote *MinHash) int {
 				continue
 			}
 
-			if mh.signature[row][col] == signatureInit || remote.signature[row][col] == signatureInit {
+			if mh.signature[row][col] == 0 || remote.signature[row][col] == 0 {
 				continue
 			}
 
