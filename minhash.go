@@ -27,17 +27,15 @@ type MinHash struct {
 const signatureInit = math.MaxUint64
 
 func NewMinHash(hashcount int, keysize int) *MinHash {
-	//Initialise signature with maximum values
+	// Initialise signature
 	signature := make([][]uint64, hashcount)
 	for row := range signature {
 		signature[row] = make([]uint64, keysize*8)
+		for col := range signature[row] {
+			signature[row][col] = signatureInit
+		}
 	}
 
-	for hashseed := 0; hashseed < hashcount; hashseed++ { //0 to hashcount
-		for bitindex := 0; bitindex < (keysize * 8); bitindex++ { //for each bit in key
-			signature[hashseed][bitindex] = signatureInit
-		} //scan through bits
-	} //for each hash
 	return &MinHash{keysize, signature, hashcount, 0}
 }
 

@@ -9,7 +9,7 @@ import (
 func TestMinHash(t *testing.T) {
 	numElements := 100
 	numDifferences := 80
-	var hashCount uint32 = 100
+	hashCount := 100
 	keysize := 32
 	local := NewMinHash(hashCount, keysize)
 	remote := NewMinHash(hashCount, keysize)
