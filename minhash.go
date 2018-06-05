@@ -62,21 +62,34 @@ func (mh *MinHash) Add(key []byte) {
 	mh.keycount++
 }
 
-//Returns Jacquard similiarity score
+// Difference calculates the expected size of the difference
 func (mh *MinHash) Difference(remote *MinHash) int {
-	//Catch errors
-
-	match := 0
+	matches := 0
 	bitwidth := mh.keysize * 8
+
+	// Count signature matches
+	// for each hash/row in the signature
 	for row := range mh.signature {
+		// For each bit
 		for col := 0; col < bitwidth; col++ {
-			if mh.signature[row][col] == remote.signature[row][col] {
-				if mh.signature[row][col] != math.MaxUint64 && remote.signature[row][col] != math.MaxUint64 {
-					match++
-				}
-			} //if they match
-		} //for each bit
-	} //for each hash/row in signature
-	score := float64(match) / float64(bitwidth*int(mh.hashcount))
-	return int(((1.0 - score) / (1.0 + score)) * float64(mh.keycount+remote.keycount))
+			if mh.signature[row][col] != remote.signature[row][col] {
+				continue
+			}
+
+			if mh.signature[row][col] == math.MaxUint64 {
+				continue
+			}
+
+			if remote.signature[row][col] == math.MaxUint64 {
+				continue
+			}
+
+			matches++
+		}
+	}
+
+	width := bitwidth * int(mh.hashcount)
+	keycountSum := mh.keycount + remote.keycount
+
+	return keycountSum * (width - matches) / (width + matches)
 }
