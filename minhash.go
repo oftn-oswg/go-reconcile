@@ -24,6 +24,8 @@ type MinHash struct {
 	keycount  int
 }
 
+const signatureInit = math.MaxUint64
+
 func NewMinHash(hashcount int, keysize int) *MinHash {
 	//Initialise signature with maximum values
 	signature := make([][]uint64, hashcount)
@@ -33,7 +35,7 @@ func NewMinHash(hashcount int, keysize int) *MinHash {
 
 	for hashseed := 0; hashseed < hashcount; hashseed++ { //0 to hashcount
 		for bitindex := 0; bitindex < (keysize * 8); bitindex++ { //for each bit in key
-			signature[hashseed][bitindex] = math.MaxUint64
+			signature[hashseed][bitindex] = signatureInit
 		} //scan through bits
 	} //for each hash
 	return &MinHash{keysize, signature, hashcount, 0}
@@ -72,11 +74,7 @@ func (mh *MinHash) Difference(remote *MinHash) int {
 				continue
 			}
 
-			if mh.signature[row][col] == math.MaxUint64 {
-				continue
-			}
-
-			if remote.signature[row][col] == math.MaxUint64 {
+			if mh.signature[row][col] == signatureInit || remote.signature[row][col] == signatureInit {
 				continue
 			}
 
