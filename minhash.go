@@ -20,20 +20,18 @@ import (
 type MinHash struct {
 	keysize   int
 	signature [][]uint64
-	hashcount uint32
+	hashcount int
 	keycount  int
 }
 
-func NewMinHash(hashcount uint32, keysize int) *MinHash {
-	var hashseed uint32
-
+func NewMinHash(hashcount int, keysize int) *MinHash {
 	//Initialise signature with maximum values
 	signature := make([][]uint64, hashcount)
 	for row := range signature {
 		signature[row] = make([]uint64, keysize*8)
 	}
 
-	for hashseed = 0; hashseed < hashcount; hashseed++ { //0 to hashcount
+	for hashseed := 0; hashseed < hashcount; hashseed++ { //0 to hashcount
 		for bitindex := 0; bitindex < (keysize * 8); bitindex++ { //for each bit in key
 			signature[hashseed][bitindex] = math.MaxUint64
 		} //scan through bits
@@ -42,10 +40,8 @@ func NewMinHash(hashcount uint32, keysize int) *MinHash {
 }
 
 func (mh *MinHash) Add(key []byte) {
-	var hashseed uint32
-
-	for hashseed = 0; hashseed < mh.hashcount; hashseed++ { //0 to hashcount
-		sum := Sum128x32(key, hashseed)
+	for hashseed := 0; hashseed < mh.hashcount; hashseed++ { //0 to hashcount
+		sum := Sum128x32(key, uint32(hashseed))
 		hash := uint64(sum[0]) % uint64(mh.hashcount)
 		for byteindex, keybyte := range key { //for each byte of key
 			var pattern uint8 = 1
@@ -68,7 +64,7 @@ func (mh *MinHash) Difference(remote *MinHash) int {
 	bitwidth := mh.keysize * 8
 
 	// Count signature matches
-	// for each hash/row in the signature
+	// For each hash/row in the signature
 	for row := range mh.signature {
 		// For each bit
 		for col := 0; col < bitwidth; col++ {
