@@ -1,7 +1,7 @@
 # go-reconcile
 
-A set reconciliation library for data synchronization and de-duplication. This library is written to interface with
-[oftn-oswg/ts-reconcile](https://github.com/oftn-oswg/ts-reconcile), the TypeScript/JavaScript implementation.
+A set reconciliation library for data synchronization and de-duplication. This library is written to be able to
+interface with [oftn-oswg/ts-reconcile](https://github.com/oftn-oswg/ts-reconcile), the TypeScript/JavaScript implementation.
 
 The algorithms implemented here are based on:
 

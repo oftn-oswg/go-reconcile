@@ -1,7 +1,6 @@
 package reconcile
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -30,8 +29,8 @@ func (h *HybridEstimator) BuildSignature(keys [][]byte) {
 		}
 	}
 
-	h.MinHashset[0] = NewMinHash(100, len(keys[0]))
-	h.MinHashset[1] = NewMinHash(100, len(keys[0]))
+	h.MinHashset[0] = NewMinHash(100)
+	h.MinHashset[1] = NewMinHash(100)
 
 	//assign elements by trailing zeroes
 	for _, key := range keys {
@@ -52,8 +51,8 @@ func (h *HybridEstimator) EstimateSizeDifference(remote *HybridEstimator) int {
 		if level < 0 {
 			return count
 		} else if level < 2 { //MinHash
-			mh := h.MinHashset[level]
-			fmt.Println(mh.Difference(remote.MinHashset[level]))
+			//mh := h.MinHashset[level]
+			//fmt.Println(mh.Difference(remote.MinHashset[level]))
 		} else { //IBF Strata
 			ibf := h.IBFset[level]
 			remotelevel := remote.IBFset[level]

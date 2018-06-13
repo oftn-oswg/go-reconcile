@@ -34,6 +34,16 @@ func containsElement(list [][]byte, element []byte) bool {
 	return false
 }
 
+func MakeTestSets(keysize, numSimilar, numDifferent int) (a, b, c, au, bu [][]byte) {
+	common := makeRandomElements(numSimilar, keysize)
+	partition := rand.Intn(numDifferent + 1)
+	elementsAunique := makeRandomElements(partition, keysize)
+	elementsBunique := makeRandomElements(numDifferent-partition, keysize)
+	elementsA := append(append(make([][]byte, 0, numSimilar+len(elementsAunique)), common...), elementsAunique...)
+	elementsB := append(append(make([][]byte, 0, numSimilar+len(elementsBunique)), common...), elementsBunique...)
+	return elementsA, elementsB, common, elementsAunique, elementsBunique
+}
+
 func TestIBF(t *testing.T) {
 	keysize := 32
 
@@ -43,12 +53,7 @@ func TestIBF(t *testing.T) {
 			t.Logf("Testing with %d common and %d different elements in %d cells", base, diffs, cells)
 
 			// Prepare elements
-			common := makeRandomElements(base, keysize)
-			partition := rand.Intn(diffs + 1)
-			elementsAunique := makeRandomElements(partition, keysize)
-			elementsBunique := makeRandomElements(diffs-partition, keysize)
-			elementsA := append(append(make([][]byte, 0, base+len(elementsAunique)), common...), elementsAunique...)
-			elementsB := append(append(make([][]byte, 0, base+len(elementsBunique)), common...), elementsBunique...)
+			elementsA, elementsB, common, elementsAunique, elementsBunique := MakeTestSets(keysize, base, diffs)
 
 			for _, element := range common {
 				t.Logf("Letting %s ∈ A ∩ B", elementName(element))

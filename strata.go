@@ -7,9 +7,9 @@ import (
 
 // Strata estimates the size of the difference between two sets
 type Strata struct {
-	Cellsize int //IBF size for each strata
-	Keysize  int //Bytes
-	Depth    int //Number of levels
+	Cellsize int // IBF size for each strata
+	Keysize  int // Bytes
+	Depth    int // Number of levels
 	IBFset   []*IBF
 }
 

@@ -1,8 +1,7 @@
 package reconcile
 
 import (
-	"fmt"
-	"math/rand"
+	"math"
 	"testing"
 )
 
@@ -11,38 +10,58 @@ func TestMinHash(t *testing.T) {
 	numDifferences := 80
 	hashCount := 100
 	keysize := 32
-	local := NewMinHash(hashCount, keysize)
-	remote := NewMinHash(hashCount, keysize)
+	local := NewMinHash(hashCount)
+	remote := NewMinHash(hashCount)
 
-	for i := 0; i < numElements; i++ {
-		element := make([]byte, keysize)
-		_, err := rand.Read(element)
-		if err != nil {
-			t.Error("Could not get random bytes for set element")
-			return
-		}
+	// Prepare elements
+	localElements, remoteElements, _, _, _ := MakeTestSets(keysize, numElements, numDifferences)
+
+	for _, element := range localElements {
 		local.Add(element)
+	}
+	for _, element := range remoteElements {
 		remote.Add(element)
 	}
 
-	for i := 0; i < numDifferences; i++ {
-		element := make([]byte, keysize)
-		_, err := rand.Read(element)
-		if err != nil {
-			t.Error("Could not get random bytes for set element")
-			return
-		}
-		// Add to a set at random
-		diffSet := local
-		if rand.Intn(2) == 0 {
-			diffSet = remote
-		}
-		diffSet.Add(element)
+	count, err := local.Estimate(remote)
+	if err != nil {
+		t.Error(err)
+		return
 	}
 
-	diff := local.Difference(remote)
+	jaccard, err := local.Similarity(remote)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 
-	fmt.Printf("MinHash Diff %v vs actual: %v\n", diff, numDifferences)
+	// A bound for expected error for the Jaccard similarity coefficient J is O(1 / sqrt(hashCount))
+	jaccardEpsilon := -1.0 / math.Sqrt(float64(hashCount))
 
-	fmt.Printf("End MinHash \n")
+	jaccardMin := jaccard - jaccardEpsilon
+	if jaccardMin < 0 {
+		jaccardMin = 0
+	}
+	jaccardMax := jaccard + jaccardEpsilon
+	if jaccardMax > 1 {
+		jaccardMax = 1
+	}
+
+	countSum := float64(len(localElements) + len(remoteElements))
+	countMin := int(countSum * (1.0 - jaccardMin) / (1.0 + jaccardMin))
+	countMax := int(countSum * (1.0 - jaccardMax) / (1.0 + jaccardMax))
+
+	title := "MinHash"
+	if countMin > count || count > countMax {
+		t.Error(
+			"For", title, "test",
+			"expected between", countMin, "and", countMax,
+			"got", count)
+		return
+	}
+
+	t.Log(
+		"Success for", title, "test",
+		"expected between", countMin, "and", countMax,
+		"got", count)
 }
